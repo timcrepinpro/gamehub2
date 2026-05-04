@@ -1,58 +1,45 @@
 <?php
+// register.php — Inscription d'un utilisateur
 session_start();
 
-// 1. Récupérer les données du formulaire
-$login = $_POST['login'] ?? '';
-$email = $_POST['email'] ?? '';
-$password = $_POST['password'] ?? '';
-$confirm_password = $_POST['confirm_password'] ?? '';
+$login            = trim($_POST['login']            ?? '');
+$email            = trim($_POST['email']            ?? '');
+$password         = trim($_POST['password']         ?? '');
+$confirm_password = trim($_POST['confirm_password'] ?? '');
 
-// 2. Vérifier que tous les champs sont remplis
 if (empty($login) || empty($email) || empty($password) || empty($confirm_password)) {
     die("Erreur : Tous les champs sont obligatoires.");
 }
 
-// 3. Valider le login
-$loginPattern = "/^[a-zA-Z0-9]{4,}$/";
-if (!preg_match($loginPattern, $login)) {
-    die("Erreur : Le login doit contenir uniquement des lettres et des chiffres, et faire au moins 4 caractères.");
+if (!preg_match("/^[a-zA-Z0-9]{4,}$/", $login)) {
+    die("Erreur : Le login doit contenir uniquement des lettres/chiffres (min. 4 caractères).");
 }
 
-// 4. Valider l'email
-$emailPattern = "/^[a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]{2,}$/";
-if (!preg_match($emailPattern, $email)) {
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     die("Erreur : L'email n'est pas valide.");
 }
 
-// 5. Valider le mot de passe
-$passwordPattern = "/^(?=.*[A-Z])(?=.*\d).{8,}$/";
-if (!preg_match($passwordPattern, $password)) {
-    die("Erreur : Le mot de passe doit contenir au moins 8 caractères, une majuscule et un chiffre.");
+if (!preg_match("/^(?=.*[A-Z])(?=.*\d).{8,}$/", $password)) {
+    die("Erreur : Le mot de passe doit faire 8 caractères minimum, avec 1 majuscule et 1 chiffre.");
 }
 
-// 6. Vérifier que les mots de passe correspondent
 if ($password !== $confirm_password) {
     die("Erreur : Les mots de passe ne correspondent pas.");
 }
 
-// 7. Hacher le mot de passe
-$password = password_hash($password, PASSWORD_DEFAULT);
+$password_hash = password_hash($password, PASSWORD_DEFAULT);
 
-// 8. Insérer les données dans la base de données avec PDO
 include 'db.php';
 
 try {
-    $sql = "INSERT INTO utilisateurs (login, email, password) VALUES (:login, :email, :password)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->bindParam(':login', $login);
-    $stmt->bindParam(':email', $email);
-    $stmt->bindParam(':password', $password);
-    $stmt->execute();
+    $stmt = $pdo->prepare("INSERT INTO utilisateurs (login, email, password) VALUES (:login, :email, :password)");
+    $stmt->execute([':login' => $login, ':email' => $email, ':password' => $password_hash]);
 
-    // 9. Succès : afficher un message et rediriger vers la page de connexion
-    echo "Inscription réussie ! Bienvenue, $login. Vous pouvez maintenant vous connecter.";
-    header("Refresh: 5; url=index.php");
+    echo "Inscription réussie ! Bienvenue, " . htmlspecialchars($login) . ". Vous pouvez maintenant <a href='login.html'>vous connecter</a>.";
 } catch (PDOException $e) {
-    die("Erreur lors de l'inscription : " . $e->getMessage());
+    if ($e->getCode() == 23000) {
+        die("Erreur : Ce login ou cet email est déjà utilisé.");
+    }
+    die("Erreur : " . $e->getMessage());
 }
 ?>
